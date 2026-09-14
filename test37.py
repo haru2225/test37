@@ -39,6 +39,7 @@ from graphite.nn.models.e3nn_nequip import NequIP
 from graphite.transforms import DownselectEdges, RattleParticles
 
 FORMAT = "test37-clay-cg-denoiser-v1"
+DATASET_FORMATS = {FORMAT, "test36-clay-cg-denoiser-v1"}
 CAVEAT = (
     "test32 sigma-agnostic displacement denoiser, not a scalar energy or a "
     "temperature-conditioned equilibrium score. F=-kBT*dx/sigma_ref^2 is an "
@@ -169,7 +170,7 @@ def graph(positions, cell, type_ids, cutoff, device):
 def load_dataset(folder):
     folder = Path(folder).resolve()
     meta = json.loads((folder / "metadata.json").read_text())
-    if meta.get("format") != FORMAT or meta.get("length_unit") != "angstrom":
+    if meta.get("format") not in DATASET_FORMATS or meta.get("length_unit") != "angstrom":
         raise ValueError("Expected test37 dataset with explicit angstrom units")
     pos = np.load(folder / "positions.npy", mmap_mode="r", allow_pickle=False)
     cells = np.load(folder / "cells.npy", mmap_mode="r", allow_pickle=False)
@@ -269,7 +270,7 @@ def prepare(args):
 
 def checkpoint_model(path, device):
     ck = torch.load(path, map_location="cpu", weights_only=False)
-    if ck.get("format") != FORMAT:
+    if ck.get("format") not in DATASET_FORMATS:
         raise ValueError("Expected test37 checkpoint; SiO2 weights are not clay weights")
     model = build_model(ck["architecture"], device)
     model.load_state_dict(ck["model_state_dict"])

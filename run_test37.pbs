@@ -16,7 +16,7 @@ fi
 sif="${SIF_IMAGE:-$work_dir/test37.sif}"
 dm2="${DM2_ROOT:-$work_dir/DM2}"
 aa_run="${AA_RUN:-$work_dir/input}"
-dataset="${DATASET_PATH:-$work_dir/test37-aa/long-run/dataset}"
+dataset="${DATASET_PATH:-$work_dir/input/test36-dataset}"
 train="${TRAIN_DIR:-$work_dir/test37-aa/long-run/train}"
 generated="${GENERATED_DIR:-$work_dir/test37-aa/long-run/generated}"
 cgmd="${CGMD_DIR:-$work_dir/test37-aa/long-run/cgmd}"
