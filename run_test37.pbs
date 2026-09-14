@@ -24,6 +24,27 @@ analysis="${ANALYSIS_DIR:-$work_dir/test37-aa/long-run/cgmd-analysis}"
 trajectory="${AA_TRAJECTORY:-$aa_run/production.extxyz}"
 mapping="${AA_MAPPING:-$aa_run/mapping.json}"
 checkpoint="$train/checkpoint.pt"
+
+# GitHub stores the 148 MB test36 dataset through Git LFS. A plain clone may
+# leave a tiny pointer text file at positions.npy; detect and materialize it
+# before the container tries numpy.load(..., allow_pickle=False).
+dataset_pointer="$dataset/positions.npy"
+if [[ -f "$dataset_pointer" ]] && head -n 1 "$dataset_pointer" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
+  echo "positions.npy is a Git LFS pointer; downloading the dataset" >&2
+  if ! command -v git-lfs >/dev/null 2>&1 && type module >/dev/null 2>&1; then
+    module load git-lfs >/dev/null 2>&1 || true
+  fi
+  if command -v git-lfs >/dev/null 2>&1; then
+    git lfs pull
+  else
+    echo "Git LFS is required. Install/load git-lfs, then run: git lfs pull" >&2
+    exit 2
+  fi
+fi
+if [[ -f "$dataset_pointer" ]] && head -n 1 "$dataset_pointer" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
+  echo "Git LFS download did not replace $dataset_pointer" >&2
+  exit 2
+fi
 if [[ ! -r "$sif" ]]; then
   echo "Building $sif from Singularity.test37.def" >&2
   "$runtime" build --fakeroot "$sif" "$work_dir/Singularity.test37.def"
