@@ -127,24 +127,22 @@ swelling pressure, shear stress or transport coefficients.
 
 ## Supercomputer
 
-Copy `test37.py`, `run_test37.pbs`, `Singularity.test37.def`, and a DM2 checkout
-containing `src/graphite`. A prepared dataset is independent of the local path.
+The repository includes a pilot AA trajectory under `input/`. After cloning,
+the PBS script can be submitted directly. On the first submission it builds
+`test37.sif` and clones DM2 when they are missing; later submissions reuse them.
 The optional LAMMPS route additionally needs `test32-CGMD-repo` and its LAMMPS
 dependencies; the built-in ASE MD route does not.
 
 ```bash
-singularity build --fakeroot test37.sif Singularity.test37.def
-qsub -P <ProjectGroup_ID> \
-  -v DATASET_PATH=/path/to/test37-data,TRAIN_DIR=/path/to/test37-train \
-  run_test37.pbs
+qsub -P <ProjectGroup_ID> run_test37.pbs
 # Resume an unfinished training job:
 qsub -P <ProjectGroup_ID> \
-  -v DATASET_PATH=/path/to/test37-data,TRAIN_DIR=/path/to/test37-train,RESUME=1 \
-  run_test37.pbs
-qsub -P <ProjectGroup_ID> \
-  -v TRAIN_DIR=/path/to/test37-train,CGMD_DIR=/path/to/test37-md,SIGMA_REF=0.1,CGMD_STEPS=10000 \
+  -v RESUME=1 \
   run_test37.pbs
 ```
+
+Use `AA_RUN`, `DM2_ROOT`, or `SIF_IMAGE` only when replacing the bundled
+pilot input or using site-provided dependencies.
 
 PBS defaults use sg8, 1 GPU, 1 MPI rank, and a 20-hour walltime. The training
 stage receives a 19.5-hour budget, leaving a small scheduler/container margin.

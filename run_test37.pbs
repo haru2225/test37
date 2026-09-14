@@ -12,7 +12,7 @@ cd "$work_dir"
 runtime="${CONTAINER_RUNTIME:-singularity}"
 sif="${SIF_IMAGE:-$work_dir/test37.sif}"
 dm2="${DM2_ROOT:-$work_dir/DM2}"
-aa_run="${AA_RUN:-$work_dir/test36-aa/long-run/run}"
+aa_run="${AA_RUN:-$work_dir/input}"
 dataset="${DATASET_PATH:-$work_dir/test37-aa/long-run/dataset}"
 train="${TRAIN_DIR:-$work_dir/test37-aa/long-run/train}"
 generated="${GENERATED_DIR:-$work_dir/test37-aa/long-run/generated}"
@@ -21,13 +21,20 @@ analysis="${ANALYSIS_DIR:-$work_dir/test37-aa/long-run/cgmd-analysis}"
 trajectory="${AA_TRAJECTORY:-$aa_run/production.extxyz}"
 mapping="${AA_MAPPING:-$aa_run/mapping.json}"
 checkpoint="$train/checkpoint.pt"
-[[ -r "$sif" ]] || { echo "Missing SIF_IMAGE: $sif" >&2; exit 2; }
-[[ -d "$dm2/src/graphite" ]] || { echo "Missing DM2_ROOT: $dm2" >&2; exit 2; }
+if [[ ! -r "$sif" ]]; then
+  echo "Building $sif from Singularity.test37.def" >&2
+  "$runtime" build --fakeroot "$sif" "$work_dir/Singularity.test37.def"
+fi
+if [[ ! -d "$dm2/src/graphite" ]]; then
+  [[ -z "${DM2_ROOT:-}" ]] || { echo "DM2_ROOT does not contain src/graphite: $dm2" >&2; exit 2; }
+  echo "DM2_ROOT not found; cloning DM2 into $dm2" >&2
+  git clone --depth 1 https://github.com/digital-synthesis-lab/DM2.git "$dm2"
+fi
 if [[ ! -r "$trajectory" || ! -r "$mapping" ]]; then
-  for candidate in "$work_dir/production.extxyz" "$work_dir/aa/production.extxyz" "$work_dir/test36-aa/long-run/run/production.extxyz"; do
+  for candidate in "$work_dir/production.extxyz" "$work_dir/aa/production.extxyz" "$work_dir/input/production.extxyz" "$work_dir/test36-aa/long-run/run/production.extxyz"; do
     if [[ -r "$candidate" ]]; then trajectory="$candidate"; break; fi
   done
-  for candidate in "$work_dir/mapping.json" "$work_dir/aa/mapping.json" "$work_dir/test36-aa/long-run/run/mapping.json"; do
+  for candidate in "$work_dir/mapping.json" "$work_dir/aa/mapping.json" "$work_dir/input/mapping.json" "$work_dir/test36-aa/long-run/run/mapping.json"; do
     if [[ -r "$candidate" ]]; then mapping="$candidate"; break; fi
   done
 fi
