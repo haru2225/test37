@@ -29,6 +29,14 @@ checkpoint="$train/checkpoint.pt"
 # leave a tiny pointer text file at positions.npy; detect and materialize it
 # before the container tries numpy.load(..., allow_pickle=False).
 dataset_pointer="$dataset/positions.npy"
+dataset_parts=("$dataset/positions.npy.part00" "$dataset/positions.npy.part01")
+if [[ -f "${dataset_parts[0]}" && -f "${dataset_parts[1]}" ]]; then
+  part_bytes=$(( $(wc -c < "${dataset_parts[0]}") + $(wc -c < "${dataset_parts[1]}") ))
+  if [[ ! -f "$dataset_pointer" || $(wc -c < "$dataset_pointer") -ne "$part_bytes" ]]; then
+    echo "Reconstructing positions.npy from GitHub-compatible chunks" >&2
+    cat "${dataset_parts[0]}" "${dataset_parts[1]}" > "$dataset_pointer"
+  fi
+fi
 if [[ -f "$dataset_pointer" ]] && head -n 1 "$dataset_pointer" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
   echo "positions.npy is a Git LFS pointer; downloading the dataset" >&2
   if ! command -v git-lfs >/dev/null 2>&1 && type module >/dev/null 2>&1; then
