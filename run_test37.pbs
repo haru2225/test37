@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# qsub run_test37.pbs でAA結果からCG-MD・解析まで実行する。
+# 必要ならDATASET_PATH, TRAIN_DIRなどを環境変数で上書き可能。
+#PBS -q sg8
+#PBS -N test37_clay_all
+#PBS -l walltime=20:00:00
+#PBS -l select=1:ncpus=8:mpiprocs=1:ompthreads=8:mem=32gb:ngpus=1
+#PBS -j oe
+set -euo pipefail
+work_dir="${PBS_O_WORKDIR:?}"
+cd "$work_dir"
+runtime="${CONTAINER_RUNTIME:-singularity}"
+sif="${SIF_IMAGE:-$work_dir/test37.sif}"
+dm2="${DM2_ROOT:-$work_dir/DM2}"
+aa_run="${AA_RUN:-$work_dir/test36-aa/long-run/run}"
+dataset="${DATASET_PATH:-$work_dir/test37-aa/long-run/dataset}"
+train="${TRAIN_DIR:-$work_dir/test37-aa/long-run/train}"
+generated="${GENERATED_DIR:-$work_dir/test37-aa/long-run/generated}"
+cgmd="${CGMD_DIR:-$work_dir/test37-aa/long-run/cgmd}"
+analysis="${ANALYSIS_DIR:-$work_dir/test37-aa/long-run/cgmd-analysis}"
+trajectory="${AA_TRAJECTORY:-$aa_run/production.extxyz}"
+mapping="${AA_MAPPING:-$aa_run/mapping.json}"
+checkpoint="$train/checkpoint.pt"
+[[ -r "$sif" ]] || { echo "Missing SIF_IMAGE: $sif" >&2; exit 2; }
+[[ -d "$dm2/src/graphite" ]] || { echo "Missing DM2_ROOT: $dm2" >&2; exit 2; }
+if [[ ! -r "$trajectory" || ! -r "$mapping" ]]; then
+  for candidate in "$work_dir/production.extxyz" "$work_dir/aa/production.extxyz" "$work_dir/test36-aa/long-run/run/production.extxyz"; do
+    if [[ -r "$candidate" ]]; then trajectory="$candidate"; break; fi
+  done
+  for candidate in "$work_dir/mapping.json" "$work_dir/aa/mapping.json" "$work_dir/test36-aa/long-run/run/mapping.json"; do
+    if [[ -r "$candidate" ]]; then mapping="$candidate"; break; fi
+  done
+fi
+[[ -r "$trajectory" && -r "$mapping" ]] || { echo "Missing AA result. Set AA_TRAJECTORY and AA_MAPPING, or copy production.extxyz and mapping.json into $work_dir" >&2; exit 2; }
+run_container() {
+  "$runtime" exec --nv --bind "$work_dir:/work" --bind "$dm2:/dm2:ro" \
+    --env DM2_ROOT=/dm2 --env OMP_NUM_THREADS=8 --pwd /work "$sif" python -u /work/test37.py "$@"
+}
+if [[ ! -f "$dataset/metadata.json" ]]; then
+  run_container prepare --trajectory "/work/${trajectory#$work_dir/}" --mapping "/work/${mapping#$work_dir/}" --output "/work/${dataset#$work_dir/}"
+fi
+if [[ ! -f "$checkpoint" ]]; then
+  run_container train --dataset "/work/${dataset#$work_dir/}" --output "/work/${train#$work_dir/}" --device cuda --cutoff "${CUTOFF:-10.0}" --large-cutoff "${LARGE_CUTOFF:-10.0}" --updates "${UPDATES:-30000}" --batch-size "${BATCH_SIZE:-16}" --time-budget-hours "${TRAIN_TIME_HOURS:-19.5}"
+elif [[ "${RESUME:-0}" == "1" ]]; then
+  run_container train --dataset "/work/${dataset#$work_dir/}" --output "/work/${train#$work_dir/}" --device cuda --cutoff "${CUTOFF:-10.0}" --large-cutoff "${LARGE_CUTOFF:-10.0}" --updates "${UPDATES:-30000}" --batch-size "${BATCH_SIZE:-16}" --time-budget-hours "${TRAIN_TIME_HOURS:-19.5}" --resume
+fi
+if [[ ! -f "$generated/generation.json" ]]; then
+  run_container generate --checkpoint "/work/${checkpoint#$work_dir/}" --output "/work/${generated#$work_dir/}" --device cuda --time-budget-hours "${GENERATE_TIME_HOURS:-19.5}"
+fi
+if [[ ! -f "$cgmd/run_metrics.json" ]]; then
+  run_container md --checkpoint "/work/${checkpoint#$work_dir/}" --output "/work/${cgmd#$work_dir/}" --device cuda --sigma-ref "${SIGMA_REF:-0.1}" --steps "${CGMD_STEPS:-10000}" --time-budget-hours "${CGMD_TIME_HOURS:-19.5}"
+fi
+if [[ ! -f "$analysis/rdf.json" ]]; then
+  run_container analyze --reference "/work/${dataset#$work_dir/}" --samples "/work/${cgmd#$work_dir/}/md.extxyz" --output "/work/${analysis#$work_dir/}" --r-max "${R_MAX:-5}"
+fi
+echo "test37 complete: $analysis"
