@@ -10,6 +10,9 @@ set -euo pipefail
 work_dir="${PBS_O_WORKDIR:?}"
 cd "$work_dir"
 runtime="${CONTAINER_RUNTIME:-singularity}"
+if ! command -v "$runtime" >/dev/null 2>&1 && command -v apptainer >/dev/null 2>&1; then
+  runtime=apptainer
+fi
 sif="${SIF_IMAGE:-$work_dir/test37.sif}"
 dm2="${DM2_ROOT:-$work_dir/DM2}"
 aa_run="${AA_RUN:-$work_dir/input}"
